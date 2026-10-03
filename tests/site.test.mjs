@@ -6,7 +6,7 @@ import { fileURLToPath } from 'node:url';
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const html = fs.readFileSync(path.join(root, 'index.html'), 'utf8');
-const script = html.match(/<script>([\s\S]*)<\/script>/)[1];
+const script = html.match(/<script type="module">([\s\S]*)<\/script>/)[1];
 const ids = new Set([...html.matchAll(/id="([^"]+)"/g)].map(([, id]) => id));
 
 test('the page is a self-contained document with no leftover artifact-frame runtime', () => {
@@ -28,6 +28,23 @@ test('the social card metadata matches the deployed location and the shipped ima
   assert.match(html, /<meta property="og:url" content="https:\/\/app\.jehyunlee\.dev\/snowflake\/">/);
   assert.match(html, /<meta property="og:image" content="https:\/\/app\.jehyunlee\.dev\/snowflake\/og-image\.jpg">/);
   assert.ok(fs.statSync(path.join(root, 'og-image.jpg')).size > 10000);
+});
+
+test('the 3D renderer resolves three.js and its addons from vendored files', () => {
+  const map = JSON.parse(html.match(/<script type="importmap">([\s\S]*?)<\/script>/)[1]);
+  const vendored = (spec) => {
+    const local = path.resolve(root, spec);
+    assert.ok(local.startsWith(root + path.sep), spec);
+    assert.ok(fs.existsSync(local), spec);
+    return fs.readFileSync(local, 'utf8');
+  };
+  const three = vendored(map.imports.three);
+  for (const [, spec] of three.matchAll(/from '(\.[^']+)'/g)) vendored(path.join('js/vendor', spec));
+  for (const [, spec] of script.matchAll(/from '(three\/addons\/[^']+)'/g)) {
+    const addon = vendored(spec.replace('three/addons/', map.imports['three/addons/']));
+    const deps = [...addon.matchAll(/^} from '([^']+)'/gm)].map(([, dep]) => dep);
+    assert.deepEqual(deps, ['three'], spec + ' must only import three');
+  }
 });
 
 test('every element the script looks up exists in the markup', () => {
