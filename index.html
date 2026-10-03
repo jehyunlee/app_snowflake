@@ -1,0 +1,441 @@
+<!doctype html>
+<html lang="ko">
+<head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>눈송이는 어떻게 자랄까 — 눈 결정 성장 시뮬레이터</title>
+<meta name="description" content="기온·습도·기압·풍속을 바꿔 가며 눈 결정이 자라는 모양을 실시간으로 관찰하는 인터랙티브 시뮬레이터">
+<meta property="og:title" content="눈송이는 어떻게 자랄까">
+<meta property="og:description" content="물 분자 하나가 얼음 격자에 붙는 순간부터 지름 2 mm 남짓한 눈 결정이 완성되기까지.">
+<meta property="og:image" content="https://app.jehyunlee.dev/snowflake/og-image.jpg">
+<meta property="og:url" content="https://app.jehyunlee.dev/snowflake/">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Gowun+Batang:wght@400;700&family=IBM+Plex+Sans+KR:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+:root{
+--bg:#EDF1F5;--surface:#F8FAFC;--surface-2:#E2E8EE;--ink:#142333;--ink-2:#45576A;--ink-3:#6A7A8A;--line:#C8D2DC;--accent:#2B6A96;--on-accent:#FFFFFF;
+--m-stop:#E6EBF0;--m-plate:#D3E4F1;--m-sect:#A8CAE5;--m-stellar:#78ABD6;--m-fern:#4A85BB;--m-column:#DCD4EE;--m-needle:#BAACDD;--m-cold:#DFDDD3;
+--serif:"Gowun Batang","Noto Serif KR","AppleMyungjo","Batang",serif;
+--sans:"IBM Plex Sans KR","Apple SD Gothic Neo","Malgun Gothic","Noto Sans KR",system-ui,sans-serif;
+color-scheme:light;box-sizing:border-box;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px);
+}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]){
+--bg:#0D1722;--surface:#142130;--surface-2:#1B2B3C;--ink:#E2EBF2;--ink-2:#A9B9C7;--ink-3:#7F909F;--line:#2A3B4C;--accent:#7FB5DD;--on-accent:#0D1722;
+--m-stop:#111C28;--m-plate:#1C3246;--m-sect:#244260;--m-stellar:#2D577D;--m-fern:#3A6E9E;--m-column:#2C2947;--m-needle:#3E3667;--m-cold:#292D33;color-scheme:dark}}
+:root[data-theme="dark"]{
+--bg:#0D1722;--surface:#142130;--surface-2:#1B2B3C;--ink:#E2EBF2;--ink-2:#A9B9C7;--ink-3:#7F909F;--line:#2A3B4C;--accent:#7FB5DD;--on-accent:#0D1722;
+--m-stop:#111C28;--m-plate:#1C3246;--m-sect:#244260;--m-stellar:#2D577D;--m-fern:#3A6E9E;--m-column:#2C2947;--m-needle:#3E3667;--m-cold:#292D33;color-scheme:dark}
+html{scroll-padding-top:env(safe-area-inset-top,0px)}
+*,*::before,*::after{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--ink);font-family:var(--sans);font-size:16px;line-height:1.7;-webkit-text-size-adjust:100%;word-break:keep-all;overflow-wrap:break-word}
+button,input{font:inherit;color:inherit}
+button:focus-visible,input:focus-visible,canvas:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+.wrap{max-width:1140px;margin:0 auto;padding:32px 20px 56px}
+.head{max-width:760px;margin:0 0 28px}
+h1{font-family:var(--serif);font-weight:700;font-size:clamp(30px,5.4vw,46px);line-height:1.2;letter-spacing:-.01em;margin:0 0 12px}
+.lede{font-size:17px;color:var(--ink-2);margin:0;max-width:62ch}
+.lab{display:grid;grid-template-columns:minmax(0,1fr);gap:28px}
+.toolbar{display:flex;align-items:center;gap:8px;margin:0 0 12px;flex-wrap:wrap}
+.seg{display:inline-flex;border:1px solid var(--line);border-radius:10px;padding:3px;background:var(--surface)}
+.seg button{border:0;background:transparent;padding:6px 14px;border-radius:7px;font-size:14px;cursor:pointer;color:var(--ink-2)}
+.seg button[aria-pressed="true"]{background:var(--ink);color:var(--bg)}
+.spacer{flex:1}
+.ib{width:40px;height:40px;display:inline-grid;place-items:center;border:1px solid var(--line);border-radius:10px;background:var(--surface);cursor:pointer;padding:0}
+.ib svg{width:18px;height:18px;fill:none;stroke:currentColor;stroke-width:1.8;stroke-linecap:round;stroke-linejoin:round}
+.ib.txt{width:auto;padding:0 12px;font-size:14px;font-variant-numeric:tabular-nums}
+.ib:hover,.seg button:hover,.chips button:hover{border-color:var(--ink-3)}
+#cv{display:block;width:100%;aspect-ratio:1/1;border-radius:14px;background:#0C1A2B;touch-action:manipulation}
+.legend{font-size:13px;color:var(--ink-3);margin:10px 0 0;line-height:1.55}
+.card{background:var(--surface);border:1px solid var(--line);border-radius:14px;padding:16px 18px}
+.habit{display:flex;gap:14px;align-items:center}
+.habit .lbl{font-size:13px;color:var(--ink-3);margin:0}
+.habit .name{font-family:var(--serif);font-size:26px;font-weight:700;line-height:1.25;margin:2px 0 6px}
+.habit .desc{font-size:14px;color:var(--ink-2);line-height:1.6;margin:0}
+.sidebox{flex:none;text-align:center}
+#side{display:block;width:76px;height:76px}
+#asp{font-size:11px;color:var(--ink-3);line-height:1.3;margin-top:4px;font-variant-numeric:tabular-nums}
+.stat{font-size:14px;color:var(--ink-2);margin:12px 2px 18px;font-variant-numeric:tabular-nums}
+.chips{display:flex;flex-wrap:wrap;gap:8px;margin:0 0 22px}
+.chips button{border:1px solid var(--line);background:var(--surface);border-radius:999px;padding:6px 13px;font-size:14px;cursor:pointer}
+.chips button.scen{border-color:var(--accent);color:var(--accent)}
+.ctrl{display:grid;grid-template-columns:52px minmax(0,1fr) 78px;align-items:center;column-gap:10px}
+.ctrl label{font-size:15px;font-weight:500}
+.ctrl input{width:100%;accent-color:var(--accent);margin:0;height:28px}
+.ctrl output{font-size:15px;text-align:right;font-variant-numeric:tabular-nums}
+.hint{font-size:13px;color:var(--ink-3);margin:0 0 16px 62px;line-height:1.5}
+figure{margin:8px 0 0}
+#map{display:block;width:100%;height:230px;border-radius:12px;touch-action:none;cursor:crosshair;background:var(--surface)}
+figcaption{font-size:13px;color:var(--ink-3);margin-top:8px;line-height:1.55}
+.notes{margin-top:56px;border-top:1px solid var(--line);padding-top:36px;display:grid;grid-template-columns:minmax(0,1fr);gap:8px 56px}
+.notes h2{font-family:var(--serif);font-weight:700;font-size:24px;line-height:1.35;margin:28px 0 10px}
+.notes p{margin:0 0 14px;color:var(--ink-2);max-width:68ch}
+.notes p strong{color:var(--ink);font-weight:600}
+.vars{margin:0;padding:0}
+.vars dt{font-family:var(--serif);font-weight:700;font-size:19px;color:var(--ink);margin:18px 0 4px}
+.vars dd{margin:0 0 6px;color:var(--ink-2);max-width:68ch}
+.foot{margin-top:40px;font-size:13px;color:var(--ink-3);max-width:80ch}
+.sr{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0);white-space:nowrap}
+@media (min-width:920px){
+.lab{grid-template-columns:minmax(0,1fr) 390px;align-items:start;gap:40px}
+.stage{position:sticky;top:calc(env(safe-area-inset-top,0px) + 16px)}
+#cv{max-width:calc(100svh - 150px);margin:0 auto}
+.notes{grid-template-columns:minmax(0,1fr) minmax(0,1fr)}
+.notes .full{grid-column:1/-1}
+}
+</style>
+</head>
+<body>
+<main class="wrap">
+<header class="head">
+<h1>눈송이는 어떻게 자랄까</h1>
+<p class="lede">물 분자 하나가 얼음 격자에 붙는 순간부터 지름 2&nbsp;mm 남짓한 눈 결정이 완성되기까지를 지켜보는 시뮬레이터입니다. 기온, 습도, 기압, 풍속을 바꾸면 자라고 있는 결정의 모양이 그 자리에서 달라집니다.</p>
+</header>
+
+<section class="lab" aria-label="시뮬레이션">
+<div class="stage">
+<div class="toolbar">
+<div class="seg" role="group" aria-label="보기 선택">
+<button id="mMol" aria-pressed="false">분자 결합</button>
+<button id="mFlake" aria-pressed="true">눈송이 성장</button>
+</div>
+<span class="spacer"></span>
+<button class="ib" id="bPlay" aria-label="일시정지"><span id="iPlay"></span></button>
+<button class="ib" id="bReset" aria-label="처음부터 다시"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4.5 12a7.5 7.5 0 1 0 2.2-5.3"/><path d="M4.5 4v4.5H9"/></svg></button>
+<button class="ib txt" id="bSpd" aria-label="재생 속도">1×</button>
+</div>
+<canvas id="cv" role="img" aria-label="눈 결정 성장 애니메이션"></canvas>
+<p class="legend" id="leg"></p>
+</div>
+
+<div class="panel">
+<div class="card habit" aria-live="polite">
+<div style="flex:1;min-width:0">
+<p class="lbl">지금 조건에서 자라는 결정</p>
+<p class="name" id="hab">별 모양 수지상</p>
+<p class="desc" id="why"></p>
+</div>
+<div class="sidebox"><canvas id="side" aria-hidden="true"></canvas><div id="asp">옆모습</div></div>
+</div>
+<p class="stat" id="stat">준비</p>
+<div class="chips">
+<button data-p="-2,8,850,0">육각판 −2°C</button>
+<button data-p="-6,15,850,0">기둥 −6°C</button>
+<button data-p="-15,20,850,0">별 수지상 −15°C</button>
+<button data-p="-20,12,850,0">섹터판 −20°C</button>
+<button data-p="scen" class="scen">구름 속 낙하 경로</button>
+</div>
+<div class="ctrl"><label for="sT">기온</label><input type="range" id="sT" min="-30" max="0" step="0.5" value="-15"><output id="vT" for="sT">−15.0°C</output></div>
+<p class="hint" id="hT"></p>
+<div class="ctrl"><label for="sS">습도</label><input type="range" id="sS" min="0" max="35" step="1" value="20"><output id="vS" for="sS">20%</output></div>
+<p class="hint" id="hS"></p>
+<div class="ctrl"><label for="sP">기압</label><input type="range" id="sP" min="300" max="1050" step="10" value="850"><output id="vP" for="sP">850 hPa</output></div>
+<p class="hint" id="hP"></p>
+<div class="ctrl"><label for="sV">풍속</label><input type="range" id="sV" min="0" max="15" step="0.5" value="0"><output id="vV" for="sV">0.0 m/s</output></div>
+<p class="hint" id="hV"></p>
+<figure>
+<canvas id="map" tabindex="0" aria-label="결정형 지도. 누르거나 끌면 기온과 습도가 바뀝니다"></canvas>
+<figcaption>결정형 지도. 가로는 기온, 세로는 얼음 기준 과포화도입니다. 누르거나 끌어서 조건을 고를 수 있고, 점선은 물 포화선입니다.</figcaption>
+</figure>
+</div>
+</section>
+<section class="notes">
+<article>
+<h2>육각형은 분자에서 시작된다</h2>
+<p>물 분자(H₂O)는 산소 하나에 수소 둘이 약 104.5° 각도로 붙은 굽은 모양입니다. 얼 때는 각 분자가 이웃 네 분자와 수소결합을 맺어 사면체 배열을 이루는데, 이 구조를 위에서 내려다보면 육각형 고리가 끝없이 이어진 벌집 모양이 됩니다. 우리가 아는 보통 얼음, 얼음 Ih의 구조이고 눈 결정이 여섯 갈래인 근본 이유입니다.</p>
+<p>‘분자 결합’ 화면은 이 바닥면을 2차원으로 단순화한 그림입니다. 떠다니던 분자는 이웃이 많은 자리, 즉 고리를 완성하는 자리에 붙을수록 안정하기 때문에 결정은 육각 면을 따라 채워집니다. 따뜻할수록 가장자리에 겨우 매달린 분자가 다시 떨어져 나가는 일이 잦고, 습도가 0%면 붙는 만큼 떨어져 나가 자라지 않습니다.</p>
+</article>
+<article>
+<h2>가지는 왜 생길까</h2>
+<p>결정이 수증기를 빨아들이면 바로 주변 공기의 수증기가 줄어듭니다. 시뮬레이션 배경에서 결정 둘레가 어둡게 보이는 이유입니다. 이때 바깥으로 튀어나온 모서리는 먼 곳의 수증기에 먼저 닿기 때문에 평평한 면보다 빨리 자랍니다. 빨리 자란 끝은 더 튀어나오고, 그 끝에서 같은 일이 되풀이되며 곁가지가 생깁니다. 이를 분지 불안정성(Mullins–Sekerka 불안정성)이라 합니다.</p>
+<p>반대로 수증기 공급이 느려 표면의 분자가 자리를 고를 시간이 충분하면 면이 평평하게 유지되어 육각판이 됩니다. 눈송이의 모양은 이 두 경향의 줄다리기로 정해집니다.</p>
+</article>
+<article class="full">
+<h2>네 가지 변수가 하는 일</h2>
+<dl class="vars">
+<dt>기온</dt>
+<dd>결정의 기본 골격을 정하는 가장 중요한 변수입니다. 1930년대 나카야 우키치로가 인공 눈 실험으로 정리한 관계에 따르면 0~−4°C에서는 판, −4~−10°C에서는 기둥과 바늘, −10~−22°C에서는 다시 판(특히 −15°C 부근에서 별 모양 가지)이 자라고, 그보다 추우면 작은 판과 기둥이 섞여 나타납니다. 온도에 따라 결정의 바닥면과 옆면이 분자를 받아들이는 속도의 비율이 바뀌기 때문인데, 이 비율이 왜 이렇게 오르내리는지는 아직 완전히 풀리지 않았습니다. 패널의 옆모습 그림이 두께 대 폭 비율을 보여 줍니다.</dd>
+<dt>습도 (얼음 기준 과포화도)</dt>
+<dd>공기 중 수증기가 얼음 표면 위 포화량보다 몇 % 더 많은지를 뜻합니다. 클수록 성장이 빠르고 가지가 많아집니다. 과냉각 물방울이 섞인 구름에서는 과포화도가 물 포화선(−15°C에서 약 15%) 근처에 머무는 경우가 많아 지도에 점선으로 표시했습니다.</dd>
+<dt>기압</dt>
+<dd>공기가 희박할수록 수증기 분자가 공기 분자와 덜 부딪혀 더 빨리 퍼집니다. 확산 계수는 기압에 대략 반비례합니다. 수증기가 빨리 채워지면 결정 둘레가 덜 고갈되어 가지가 덜 생기고 모양이 단순해집니다. 시뮬레이션은 기압이 낮을수록 한 단계에 확산 계산을 여러 번 하는 방식으로 이를 반영합니다. 실제 대기에서는 기온이나 습도보다 영향이 작습니다.</dd>
+<dt>풍속</dt>
+<dd>떨어지는 결정 둘레로 공기가 흐르면 수증기가 계속 새로 공급되어 성장이 빨라지고(환기 효과), 바람을 맞는 쪽이 더 자랍니다. 실제 눈 결정은 떨어지며 흔들리고 회전하기 때문에 이 시뮬레이션처럼 한쪽으로 크게 치우치는 경우는 드뭅니다. 바람이 강하면 결정끼리 부딪혀 부서지거나 엉겨 붙어 함박눈 같은 눈송이 덩어리가 됩니다.</dd>
+</dl>
+</article>
+<article>
+<h2>똑같은 눈송이가 없는 이유</h2>
+<p>눈 결정은 구름 속에서 수십 분 동안 떨어지며 온도와 습도가 다른 층을 차례로 지납니다. 여섯 가지는 같은 순간 같은 조건을 겪으므로 서로 닮게 자라지만, 결정마다 지나는 경로가 달라 최종 모양은 모두 다릅니다.</p>
+<p><strong>구름 속 낙하 경로</strong>를 누르면 건조한 층에서 육각판 핵이, 습한 층에서 가지가, 다시 건조한 층에서 가지 끝의 작은 판이 생기는 과정을 볼 수 있습니다. 성장 도중 슬라이더를 직접 움직여 나만의 경로를 만들어 봐도 좋습니다.</p>
+</article>
+<article>
+<h2>이 시뮬레이션이 단순화한 것</h2>
+<p>눈송이 하나에는 물 분자가 약 10¹⁸개 들어 있어 분자를 하나하나 계산할 수는 없습니다. 그래서 눈송이 화면은 Gravner와 Griffeath가 2008년에 발표한 격자 모델을 씁니다. 육각 칸 하나가 수십조 개 분자의 묶음이고, 매 단계 수증기가 확산하고, 결정 표면의 얇은 층에 쌓이고, 이웃한 얼음 칸 수에 따른 문턱을 넘으면 얼어붙습니다.</p>
+<p>기온과 습도를 모델 매개변수로 옮기는 대응은 나카야와 Libbrecht의 실험 결과에 정성적으로 맞춘 것이라 정량 예측은 아닙니다. 결정은 2차원으로만 계산했고 시간과 크기 눈금은 대략적입니다. 빙정핵에서 첫 결정이 생기는 과정, 과냉각 물방울이 달라붙는 싸락눈, 여러 결정이 붙은 다결정은 다루지 않습니다.</p>
+</article>
+</section>
+<p class="foot">참고: U. Nakaya, <i>Snow Crystals: Natural and Artificial</i> (1954) · J. Gravner, D. Griffeath, “Modeling snow crystal growth II” (2008) · K. G. Libbrecht의 눈 결정 성장 연구</p>
+</main>
+
+<script>
+(()=>{
+const R=78,N=2*R+3,NN=N*N,C=R+1,CE=C*N+C;
+const OFF=[1,-1,N,-N,-N+1,N-1];
+const DIR=[[1,0],[-1,0],[.5,.866],[-.5,-.866],[.5,-.866],[-.5,.866]];
+const ANCH=[[0,[.8,2.6,.006,.005,.05,.015,.0001]],[.35,[.65,1.75,.2,.026,.15,.015,.00001]],[.7,[.635,1.6,.4,.025,.0005,.015,.0005]],[1,[.75,1.6,.4,.025,.0005,.015,.0005]]];
+const LOGI=[0,0,1,1,1,0,1];
+function interp(m){let i=0;while(i<2&&m>ANCH[i+1][0])i++;const a=ANCH[i],b=ANCH[i+1];const t=Math.max(0,Math.min(1,(m-a[0])/(b[0]-a[0])));const o=a[1].map((v,j)=>LOGI[j]?Math.exp(Math.log(v)*(1-t)+Math.log(b[1][j])*t):v*(1-t)+b[1][j]*t);return {rho:o[0],beta:o[1],alpha:o[2],theta:o[3],kappa:o[4],mu:o[5],gamma:o[6]};}
+function smooth(x){x=Math.max(0,Math.min(1,x));return x*x*(3-2*x);}
+function derive(T,S,P,V){
+const g15=Math.exp(-(((T+14.5)/3.2)**2)),g2=.4*Math.exp(-(((T+1.8)/1.6)**2)),g20=.55*Math.exp(-(((T+20.5)/3)**2));
+const col=Math.exp(-(((T+6.5)/2.6)**2)),cold=1/(1+Math.exp((T+23)/1.5));
+const vent=1+.12*Math.sqrt(V),s=smooth((S*vent-2)/23);
+const m=Math.min(1,Math.max(g15,g2,g20,.25)*(1-.92*col)*(1-.7*cold)*s);
+const L=(.35+.65*Math.max(g15,.55))*(1-.6*col)*(1-.4*cold)*(1+.035*V)*Math.pow(Math.min(1,S/12),.8);
+const colw=Math.max(col,.65*cold),tgt=col>=.65*cold?2+5*s:1.4+1.2*s;
+const asp=Math.exp(Math.log(.25-.17*g15)*(1-colw)+Math.log(tgt)*colw);
+return {m,p:interp(m),L,asp,Sw:(Math.exp(-.0096*T)-1)*100,eps:.0022*V,dpass:1013/P,col,cold,g15,vent};
+}
+function makeFlake(){
+const F={a:new Uint8Array(NN),b:new Float32Array(NN),c:new Float32Array(NN),d:new Float32Array(NN),d2:new Float32Array(NN),nb:new Uint8Array(NN),tt:new Int32Array(NN),dist:new Int16Array(NN),att:new Int32Array(NN),maxR:0,step:0,time:0,rho:0,done:false};
+const act=[],ring=[];
+for(let r=0;r<N;r++)for(let q=0;q<N;q++){const k=r*N+q,dq=q-C,dr=r-C,ds=Math.max(Math.abs(dq),Math.abs(dr),Math.abs(dq+dr));F.dist[k]=ds;if(ds<R)act.push(k);else if(ds===R)ring.push(k);}
+F.act=Int32Array.from(act);F.ring=Int32Array.from(ring);return F;
+}
+function resetFlake(F,rho){
+F.a.fill(0);F.b.fill(0);F.c.fill(0);F.nb.fill(0);F.tt.fill(-999);
+for(let k=0;k<NN;k++){const v=F.dist[k]<=R?rho:0;F.d[k]=v;F.d2[k]=v;}
+F.a[CE]=1;F.c[CE]=1;F.d[CE]=0;F.d2[CE]=0;for(const o of OFF)F.nb[CE+o]++;
+F.maxR=0;F.step=0;F.time=0;F.rho=rho;F.done=false;
+}
+function setRho(F,rho){if(Math.abs(rho-F.rho)<1e-6)return;F.rho=rho;for(const k of F.ring){F.d[k]=rho;F.d2[k]=rho;}}
+function diffuse(F,w,frac){
+const a=F.a,act=F.act,d=F.d,d2=F.d2;
+for(let i=0;i<act.length;i++){const k=act[i];if(a[k]){d2[k]=0;continue;}const dk=d[k];let s=dk/7;
+for(let j=0;j<6;j++){const y=k+OFF[j];s+=w[j]*(a[y]?dk:d[y]);}
+d2[k]=frac>=1?s:dk+frac*(s-dk);}
+F.d=d2;F.d2=d;
+}
+function stepFlake(F,p,eps,dpass){
+const w=DIR.map(v=>(1-eps*v[0])/7);
+let dp=dpass;while(dp>1e-3){diffuse(F,w,Math.min(1,dp));dp-=1;}
+const a=F.a,b=F.b,c=F.c,nb=F.nb,act=F.act,att=F.att,d=F.d,k1=1-p.kappa;
+for(let i=0;i<act.length;i++){const k=act[i];if(!a[k]&&nb[k]){b[k]+=k1*d[k];c[k]+=p.kappa*d[k];d[k]=0;}}
+let na=0;
+for(let i=0;i<act.length;i++){const k=act[i];if(a[k]||!nb[k])continue;const m=nb[k];let j=false;
+if(m>=4)j=true;else if(m===3){if(b[k]>=1)j=true;else if(b[k]>=p.alpha){let s=d[k];for(let q=0;q<6;q++)s+=d[k+OFF[q]];if(s<p.theta)j=true;}}
+else if(b[k]>=p.beta)j=true;if(j)att[na++]=k;}
+for(let i=0;i<na;i++){const k=att[i];a[k]=1;c[k]+=b[k];b[k]=0;d[k]=0;F.tt[k]=F.step;for(let q=0;q<6;q++)nb[k+OFF[q]]++;if(F.dist[k]>F.maxR)F.maxR=F.dist[k];}
+for(let i=0;i<act.length;i++){const k=act[i];if(!a[k]&&nb[k]){d[k]+=p.mu*b[k]+p.gamma*c[k];b[k]*=(1-p.mu);c[k]*=(1-p.gamma);}}
+F.step++;if(F.maxR>=R-2)F.done=true;
+}
+function makeMol(){
+const Lb=360/22,cx=180,cy=180,Rm=169,s3=Math.sqrt(3),xs=[],ys=[],map=new Map();
+for(let j=-12;j<=12;j++)for(let i=-12;i<=12;i++){const hx=cx+s3*Lb*(i+j/2),hy=cy+1.5*Lb*j;
+for(let v=0;v<6;v++){const an=Math.PI/6+v*Math.PI/3,x=hx+Lb*Math.cos(an),y=hy+Lb*Math.sin(an);
+if(Math.hypot(x-cx,y-cy)>Rm)continue;const key=Math.round(x*4)+','+Math.round(y*4);if(map.has(key))continue;map.set(key,xs.length);xs.push(x);ys.push(y);}}
+const n=xs.length,nbr=[];for(let i=0;i<n;i++)nbr.push([]);
+for(let i=0;i<n;i++)for(let j=i+1;j<n;j++)if(Math.hypot(xs[i]-xs[j],ys[i]-ys[j])<1.1*Lb){nbr[i].push(j);nbr[j].push(i);}
+const M={Lb,cx,cy,Rm,xs,ys,n,nbr,occ:new Uint8Array(n),on:new Uint8Array(n),seed:new Uint8Array(n),mol:[],fl:[],fr:[],bonds:0,cnt:0,rc:0,done:false,f:0};
+for(let i=0;i<n;i++)if(Math.hypot(xs[i]-cx,ys[i]-cy)<1.05*Lb){molOcc(M,i);M.seed[i]=1;}
+return M;
+}
+function molOcc(M,k){M.occ[k]=1;M.cnt++;for(const j of M.nbr[k]){M.on[j]++;if(M.occ[j])M.bonds++;}const r=Math.hypot(M.xs[k]-M.cx,M.ys[k]-M.cy);if(r>M.rc)M.rc=r;}
+function molVac(M,k){M.occ[k]=0;M.cnt--;for(const j of M.nbr[k]){M.on[j]--;if(M.occ[j])M.bonds--;}}
+function molSpawn(M,edge,wx){let x,y,an=Math.random()*6.2832;
+if(edge){if(wx>0)an=Math.PI/2+Math.random()*Math.PI;x=M.cx+M.Rm*.97*Math.cos(an);y=M.cy+M.Rm*.97*Math.sin(an);}
+else{const r=M.rc+2*M.Lb+Math.random()*(M.Rm-M.rc-2*M.Lb);x=M.cx+r*Math.cos(an);y=M.cy+r*Math.sin(an);}
+const dr=Math.random()*6.2832;return {x,y,dx:Math.cos(dr),dy:Math.sin(dr),a:Math.random()*6.2832,sp:(Math.random()-.5)*.25};}
+function stepMol(M,T,S,P,V){
+M.f++;const tgt=Math.round(18+S*4.2),wx=V*.06;
+while(M.mol.length<tgt)M.mol.push(molSpawn(M,M.f>2,wx));
+if(M.mol.length>tgt)M.mol.length=tgt;
+const v=1.3+.025*(T+30),turn=.25+1.1*P/1013,Lb=M.Lb,cap=(.55*Lb)**2,rep=(.62*Lb)**2;
+const mob=Math.min(.95,.45+.5*(T+30)/30),hop=(3.2*Lb)**2,fr=M.fr;fr.length=0;
+for(let k=0;k<M.n;k++)if(!M.occ[k]&&M.on[k])fr.push(k);
+for(let i=M.mol.length-1;i>=0;i--){const m=M.mol[i];
+const t=(Math.random()-.5)*turn,c=Math.cos(t),s=Math.sin(t),nx=m.dx*c-m.dy*s,ny=m.dx*s+m.dy*c;m.dx=nx;m.dy=ny;
+m.x+=nx*v+wx;m.y+=ny*v;m.a+=m.sp;
+const rr=Math.hypot(m.x-M.cx,m.y-M.cy);
+if(rr>M.Rm){M.mol[i]=molSpawn(M,true,wx);continue;}
+if(rr>M.rc+Lb)continue;
+let hit=false;
+if(!M.done)for(const k of fr){const ex=m.x-M.xs[k],ey=m.y-M.ys[k];if(ex*ex+ey*ey<cap){let t2=k;
+if(M.on[k]<2&&Math.random()<mob){let best=-1,bo=1;for(const q of fr){const fx=M.xs[q]-M.xs[k],fy=M.ys[q]-M.ys[k];if(fx*fx+fy*fy<hop&&(M.on[q]>bo||(M.on[q]===bo&&best>=0&&Math.random()<.5))){best=q;bo=M.on[q];}}if(best>=0)t2=best;}
+const o=M.on[t2],p=o>=3?1:o===2?.7:.03;
+if(Math.random()<p){molOcc(M,t2);M.fl.push([t2,0]);M.mol.splice(i,1);hit=true;}break;}}
+if(hit)continue;
+for(let k=0;k<M.n;k++){if(!M.occ[k])continue;const ex=m.x-M.xs[k],ey=m.y-M.ys[k],e2=ex*ex+ey*ey;if(e2<rep){const e=Math.sqrt(e2)||1;m.x=M.xs[k]+ex/e*.63*Lb;m.y=M.ys[k]+ey/e*.63*Lb;m.dx=ex/e;m.dy=ey/e;break;}}
+}
+const pd=Math.min(.015,.006*Math.exp((T+15)/15)*Math.max(.2,1.3-S/30));
+for(let k=0;k<M.n;k++){if(!M.occ[k]||M.seed[k])continue;const o=M.on[k];
+if((o<=1&&Math.random()<pd)||(o===2&&Math.random()<pd*.08)){molVac(M,k);const ex=M.xs[k]-M.cx,ey=M.ys[k]-M.cy,e=Math.hypot(ex,ey)||1;
+M.mol.push({x:M.xs[k]+ex/e*.7*Lb,y:M.ys[k]+ey/e*.7*Lb,dx:ex/e,dy:ey/e,a:0,sp:.15});}}
+for(let i=M.fl.length-1;i>=0;i--){if(++M.fl[i][1]>24)M.fl.splice(i,1);}
+if(M.rc>M.Rm-1.6*Lb)M.done=true;
+}
+const $=id=>document.getElementById(id);
+const fmt=v=>(v<0?'−':'')+Math.abs(v);
+const cv=$('cv'),ctx=cv.getContext('2d'),side=$('side'),sx=side.getContext('2d'),mapc=$('map'),mx=mapc.getContext('2d');
+const rm=window.matchMedia&&matchMedia('(prefers-reduced-motion: reduce)').matches;
+const st={T:-15,S:20,P:850,V:0,mode:'flake',play:!rm,spd:1,scen:null,ph:-1};
+const SPD=[.5,1,2,4];
+let dv=derive(st.T,st.S,st.P,st.V);
+const F=makeFlake();resetFlake(F,dv.p.rho);
+let M=makeMol(),W=0,img=null,u32=null,lut=null,acc=0,tick=0,half=0,mapV=-1,mapImg=null,mapW=0,mapH=0;
+const pk=(r,g,b)=>((255<<24)|(b<<16)|(g<<8)|r)>>>0;
+const VAP=[],ICE=[];
+for(let i=0;i<=64;i++){const t=Math.min(1,i/51);VAP.push(pk(Math.round(5+19*t),Math.round(11+41*t),Math.round(22+66*t)));const u=Math.pow(i/64,.8);ICE.push(pk(Math.round(105+120*u),Math.round(150+90*u),Math.round(215+40*u)));}
+const NEW=pk(255,255,255);
+const ICON={play:'<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M8 5.5v13l10.5-6.5z"/></svg>',pause:'<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M8.5 5.5v13M15.5 5.5v13"/></svg>'};
+const HAB={stop:['성장 멈춤','얼음 기준으로 딱 포화 상태라 붙는 분자만큼 다시 떨어져 나가요.'],
+needle:['바늘 결정','−5°C 부근은 위아래(c축) 방향 성장이 압도적이라 가늘고 긴 바늘이 돼요. 위에서 보면 작은 점처럼 보입니다.'],
+column:['육각 기둥','−4~−10°C에서는 옆보다 위아래로 자라 기둥이 돼요. 화면에 보이는 건 위에서 본 작은 육각 단면입니다.'],
+cold:['작은 판·짧은 기둥','−22°C 아래는 공기 속 수증기 자체가 적어 느리게 자라고, 두툼한 판이나 짧은 기둥이 많아요.'],
+plate:['육각판','과포화가 낮아 분자들이 표면을 고르게 채울 시간이 있어 평평한 육각판이 됩니다.'],
+sect:['섹터판','모서리가 수증기를 조금 더 받아 넓은 잎 모양의 가지가 생겨요.'],
+stellar:['별 모양 수지상','튀어나온 끝이 수증기를 먼저 차지해 더 빨리 자라고, 그 끝이 또 갈라집니다.'],
+fern:['양치식물형 수지상','수증기가 아주 많아 곁가지까지 촘촘히 뻗는 가장 화려한 형태예요.']};
+function hkey(T,S,d){if(S<1)return'stop';if(d.col>.5)return(T>-6.5&&T<-4&&S>=10)?'needle':'column';if(d.cold>.5)return'cold';const m=d.m;return m<.15?'plate':m<.4?'sect':m<.9?'stellar':'fern';}
+function css(n){return getComputedStyle(document.documentElement).getPropertyValue(n).trim();}
+function hex(h){h=h.replace('#','');if(h.length===3)h=h.split('').map(c=>c+c).join('');const n=parseInt(h,16);return[(n>>16)&255,(n>>8)&255,n&255];}
+function build(){
+const cw=cv.clientWidth||360,dpr=Math.min(2,window.devicePixelRatio||1);
+W=Math.max(240,Math.round(Math.min(cw*dpr,800)));cv.width=W;cv.height=W;
+img=ctx.createImageData(W,W);u32=new Uint32Array(img.data.buffer);lut=new Int32Array(W*W);
+const sc=W/(2*R+6),h=W/2;
+for(let py=0;py<W;py++)for(let px=0;px<W;px++){const x=(px-h)/sc,y=(py-h)/sc,rr=y/.8660254,qq=x-rr/2;
+let rq=Math.round(qq),r2=Math.round(rr);const rs=Math.round(-qq-rr),dq=Math.abs(rq-qq),dr=Math.abs(r2-rr),ds=Math.abs(rs+qq+rr);
+if(dq>dr&&dq>ds)rq=-r2-rs;else if(dr>ds)r2=-rq-rs;const q=rq+C,r=r2+C;
+lut[py*W+px]=(q>=0&&q<N&&r>=0&&r<N&&F.dist[r*N+q]<=R)?r*N+q:-1;}
+const sd=Math.round(76*dpr);side.width=sd;side.height=sd;
+}
+function txt(s,x,y,al){ctx.textAlign=al||'left';ctx.fillText(s,x,y);}
+const FONT='12px "IBM Plex Sans KR","Apple SD Gothic Neo","Malgun Gothic",sans-serif';
+function arrow(){ctx.strokeStyle='#E6F1FB';ctx.lineWidth=1.5;ctx.beginPath();ctx.moveTo(14,20);ctx.lineTo(58,20);ctx.moveTo(52,15);ctx.lineTo(58,20);ctx.lineTo(52,25);ctx.stroke();}
+function drawFlake(){
+const a=F.a,c=F.c,d=F.d,tt=F.tt,lim=F.step-25,inv=51/(F.rho||1),bg=VAP[51];
+for(let i=0;i<lut.length;i++){const k=lut[i];if(k<0){u32[i]=bg;continue;}
+if(a[k]){if(tt[k]>lim)u32[i]=NEW;else{let v=(c[k]-1)*40;v=v<0?0:v>64?64:v|0;u32[i]=ICE[v];}}
+else{let v=d[k]*inv;v=v>64?64:v|0;u32[i]=VAP[v];}}
+ctx.setTransform(1,0,0,1,0,0);ctx.putImageData(img,0,0);
+const s=W/360;ctx.setTransform(s,0,0,s,0,0);ctx.font=FONT;ctx.fillStyle='#E6F1FB';ctx.strokeStyle='#E6F1FB';ctx.lineWidth=1.5;
+const bar=500/12*(360/(2*R+6));ctx.beginPath();ctx.moveTo(14,342);ctx.lineTo(14+bar,342);ctx.stroke();txt('0.5 mm',14,334);
+if(st.V>0){arrow();txt('기류 '+st.V.toFixed(1)+' m/s',64,24);}
+if(F.done||F.time>=3600)txt('성장 끝 · 다시 보려면 ↻',346,342,'right');
+}
+function drawMol(){
+const s=W/360,Lb=M.Lb;ctx.setTransform(s,0,0,s,0,0);ctx.fillStyle='#0C1A2B';ctx.fillRect(0,0,360,360);
+ctx.fillStyle='rgba(133,183,235,.35)';for(const k of M.fr){ctx.fillRect(M.xs[k]-1.2,M.ys[k]-1.2,2.4,2.4);}
+ctx.setLineDash([3,3]);ctx.strokeStyle='rgba(133,183,235,.8)';ctx.lineWidth=1.2;ctx.beginPath();
+for(let k=0;k<M.n;k++){if(!M.occ[k])continue;for(const j of M.nbr[k])if(j>k&&M.occ[j]){ctx.moveTo(M.xs[k],M.ys[k]);ctx.lineTo(M.xs[j],M.ys[j]);}}
+ctx.stroke();ctx.setLineDash([]);
+const ro=.28*Lb,rh=.16*Lb;
+for(let k=0;k<M.n;k++){if(!M.occ[k])continue;const nb=M.nbr[k],x=M.xs[k],y=M.ys[k];let used=0;
+ctx.fillStyle='#F1EFE8';for(let q=0;q<nb.length&&used<2;q++){if(nb.length===3&&q===k%3)continue;const j=nb[q];ctx.beginPath();ctx.arc(x+(M.xs[j]-x)*.33,y+(M.ys[j]-y)*.33,rh,0,6.2832);ctx.fill();used++;}
+ctx.fillStyle='#E24B4A';ctx.beginPath();ctx.arc(x,y,ro,0,6.2832);ctx.fill();}
+for(const [k,t] of M.fl){ctx.strokeStyle='rgba(255,255,255,'+(1-t/24).toFixed(2)+')';ctx.lineWidth=1.5;ctx.beginPath();ctx.arc(M.xs[k],M.ys[k],ro+t*.5,0,6.2832);ctx.stroke();}
+for(const m of M.mol){ctx.fillStyle='#F1EFE8';for(const da of [-.912,.912]){ctx.beginPath();ctx.arc(m.x+Math.cos(m.a+da)*.36*Lb,m.y+Math.sin(m.a+da)*.36*Lb,rh,0,6.2832);ctx.fill();}
+ctx.fillStyle='#F09595';ctx.beginPath();ctx.arc(m.x,m.y,ro,0,6.2832);ctx.fill();}
+ctx.font=FONT;ctx.fillStyle='#E6F1FB';
+if(st.V>0){arrow();txt('기류',64,24);}
+txt('결합한 분자 '+M.cnt+'개 · 수소결합 '+M.bonds+'개',14,346);
+if(M.done)txt('이런 고리가 약 10¹⁸개 모이면 눈송이 하나',346,24,'right');
+}
+function drawSide(){
+const s=side.width/76;sx.setTransform(s,0,0,s,0,0);sx.clearRect(0,0,76,76);
+let w=60,h=w*dv.asp;if(h>66){h=66;w=h/dv.asp;}w=Math.max(w,6);h=Math.max(h,3);
+const x0=38-w/2,y0=38-h/2;sx.fillStyle='rgba(120,171,214,.38)';sx.fillRect(x0,y0,w,h);
+sx.strokeStyle=css('--accent')||'#2B6A96';sx.lineWidth=1.2;sx.strokeRect(x0,y0,w,h);sx.beginPath();sx.moveTo(x0+w*.25,y0);sx.lineTo(x0+w*.25,y0+h);sx.moveTo(x0+w*.75,y0);sx.lineTo(x0+w*.75,y0+h);sx.stroke();
+$('asp').textContent='옆모습 · 두께/폭 '+(dv.asp<1?dv.asp.toFixed(2):dv.asp.toFixed(1));
+}
+const MP={l:34,r:10,t:10,b:28};
+function mapSize(){const dpr=Math.min(2,window.devicePixelRatio||1);mapW=mapc.clientWidth||340;mapH=mapc.clientHeight||230;mapc.width=Math.round(mapW*dpr);mapc.height=Math.round(mapH*dpr);mapV=-1;}
+function mapBase(){
+const GW=150,GH=90,off=document.createElement('canvas');off.width=GW;off.height=GH;const oc=off.getContext('2d'),id=oc.createImageData(GW,GH);
+const col={};for(const k of Object.keys(HAB))col[k]=hex(css('--m-'+k)||'#cccccc');
+for(let j=0;j<GH;j++)for(let i=0;i<GW;i++){const T=-(i+.5)/GW*30,S=(1-(j+.5)/GH)*35,c=col[hkey(T,S,derive(T,S,850,st.V))],o=(j*GW+i)*4;id.data[o]=c[0];id.data[o+1]=c[1];id.data[o+2]=c[2];id.data[o+3]=255;}
+oc.putImageData(id,0,0);mapImg=off;mapV=st.V;
+}
+function tx(T){return MP.l+(-T/30)*(mapW-MP.l-MP.r);}
+function ty(S){return MP.t+(1-S/35)*(mapH-MP.t-MP.b);}
+function drawMap(){
+if(!mapW)return;if(mapV!==st.V||!mapImg)mapBase();
+const s=mapc.width/mapW;mx.setTransform(s,0,0,s,0,0);mx.clearRect(0,0,mapW,mapH);
+const pw=mapW-MP.l-MP.r,ph=mapH-MP.t-MP.b;mx.imageSmoothingEnabled=true;mx.drawImage(mapImg,MP.l,MP.t,pw,ph);
+const ink=css('--ink')||'#142333',ink3=css('--ink-3')||'#6A7A8A',sur=css('--surface')||'#fff';
+mx.font='11px "IBM Plex Sans KR","Apple SD Gothic Neo",sans-serif';mx.fillStyle=ink3;mx.textAlign='center';
+for(let T=0;T>=-30;T-=5){mx.fillText(fmt(T),tx(T),mapH-MP.b+14);}
+mx.textAlign='right';for(let S=0;S<=30;S+=10){mx.fillText(S+'%',MP.l-5,ty(S)+4);}
+mx.textAlign='right';mx.fillText('기온 °C',mapW-MP.r,mapH-2);
+mx.setLineDash([4,3]);mx.strokeStyle=ink;mx.lineWidth=1.2;mx.beginPath();
+for(let T=0;T>=-30;T-=.5){const Sw=(Math.exp(-.0096*T)-1)*100,x=tx(T),y=ty(Sw);if(T===0)mx.moveTo(x,y);else mx.lineTo(x,y);}mx.stroke();mx.setLineDash([]);
+const L=[['plate',-1.5,5],['plate',-14,4.5],['sect',-19.5,11.5],['stellar',-14.5,18],['fern',-15.5,30],['column',-6.6,5],['needle',-5.4,27],['cold',-26.5,18]];
+mx.textAlign='center';mx.lineJoin='round';
+for(const [k,T,S] of L){const n=k==='needle'?'바늘':k==='column'?'기둥':k==='cold'?'작은 판·기둥':HAB[k][0].replace(' 모양','').replace('양치식물형 ','양치형 ');
+if(Math.hypot(tx(T)-tx(st.T),ty(S)-4-ty(st.S))<22)continue;mx.lineWidth=3;mx.strokeStyle=sur;mx.strokeText(n,tx(T),ty(S));mx.fillStyle=ink;mx.fillText(n,tx(T),ty(S));}
+const px=tx(st.T),py=ty(st.S);mx.lineWidth=2;mx.strokeStyle=sur;mx.fillStyle=ink;mx.beginPath();mx.arc(px,py,6,0,6.2832);mx.fill();mx.stroke();
+mx.strokeStyle=ink;mx.lineWidth=1;mx.beginPath();mx.arc(px,py,10,0,6.2832);mx.stroke();
+}
+function ui(){
+dv=derive(st.T,st.S,st.P,st.V);setRho(F,dv.p.rho);
+$('vT').textContent=fmt(st.T.toFixed(1))+'°C';$('vS').textContent=Math.round(st.S)+'%';$('vP').textContent=Math.round(st.P)+' hPa';$('vV').textContent=st.V.toFixed(1)+' m/s';
+$('hT').textContent=dv.col>.5?'기둥과 바늘이 자라는 온도대 (−4~−10°C)':dv.cold>.5?'아주 추움: 수증기량이 적어 성장이 느림':dv.g15>.4?'가지가 가장 잘 자라는 온도대 (−12~−17°C)':'판 모양으로 자라는 온도대';
+$('hS').textContent='얼음 기준 과포화도. 이 기온의 물 포화선은 약 '+Math.round(dv.Sw)+'%'+(st.S>dv.Sw?'이고, 지금은 그보다 높아요.':'예요.');
+const alt=44.33*(1-Math.pow(st.P/1013.25,.1903));
+$('hP').textContent='고도 약 '+alt.toFixed(1)+' km, 수증기 확산 속도 ×'+(1013/st.P).toFixed(2);
+$('hV').textContent=st.V>0?'환기 효과로 수증기 공급 약 +'+Math.round((dv.vent-1)*100)+'%, 바람 맞는 쪽이 더 자람':'바람 없음: 여섯 가지가 대칭으로 자람';
+const h=HAB[hkey(st.T,st.S,dv)];$('hab').textContent=h[0];$('why').textContent=h[1];drawSide();drawMap();
+}
+function setSliders(){$('sT').value=st.T;$('sS').value=st.S;$('sP').value=st.P;$('sV').value=st.V;}
+function restart(){dv=derive(st.T,st.S,st.P,st.V);resetFlake(F,dv.p.rho);M=makeMol();acc=0;st.ph=-1;}
+function setPlay(p){st.play=p;$('iPlay').innerHTML=p?ICON.pause:ICON.play;$('bPlay').setAttribute('aria-label',p?'일시정지':'재생');}
+const SC=[[0,-15,6,'1단계: 건조한 층, 육각판 핵'],[900,-15,19,'2단계: 습한 층, 가지 뻗기'],[1700,-15,7,'3단계: 다시 건조, 끝이 판으로']];
+['T','S','P','V'].forEach(k=>$('s'+k).addEventListener('input',e=>{st[k]=parseFloat(e.target.value);st.scen=null;ui();}));
+document.querySelectorAll('.chips button').forEach(b=>b.addEventListener('click',()=>{const p=b.dataset.p;
+if(p==='scen'){st.scen=SC;st.T=-15;st.S=6;st.P=850;st.V=0;}else{const v=p.split(',').map(Number);st.T=v[0];st.S=v[1];st.P=v[2];st.V=v[3];st.scen=null;}
+setSliders();ui();restart();if(st.mode!=='flake')setMode('flake');setPlay(true);}));
+function setMode(m){st.mode=m;$('mMol').setAttribute('aria-pressed',m==='mol');$('mFlake').setAttribute('aria-pressed',m==='flake');
+$('leg').textContent=m==='mol'?'빨간 점은 산소, 흰 점은 수소, 점선은 수소결합, 작은 점은 다음 분자가 붙을 수 있는 자리입니다. 얼음 Ih를 위에서 내려다본 2차원 개념도예요.':'흰색은 방금 얼어붙은 부분, 배경 밝기는 수증기 농도입니다. 결정 둘레의 어두운 영역은 결정이 수증기를 빨아들인 자리예요.';}
+$('mMol').addEventListener('click',()=>setMode('mol'));$('mFlake').addEventListener('click',()=>setMode('flake'));
+$('bPlay').addEventListener('click',()=>setPlay(!st.play));
+$('bReset').addEventListener('click',restart);
+$('bSpd').addEventListener('click',()=>{st.spd=SPD[(SPD.indexOf(st.spd)+1)%SPD.length];$('bSpd').textContent=st.spd+'×';});
+let drag=false;
+function mapPick(e){const r=mapc.getBoundingClientRect(),x=e.clientX-r.left,y=e.clientY-r.top;
+const T=Math.max(-30,Math.min(0,-(x-MP.l)/(mapW-MP.l-MP.r)*30)),S=Math.max(0,Math.min(35,(1-(y-MP.t)/(mapH-MP.t-MP.b))*35));
+st.T=Math.round(T*2)/2;st.S=Math.round(S);st.scen=null;setSliders();ui();}
+mapc.addEventListener('pointerdown',e=>{drag=true;try{mapc.setPointerCapture(e.pointerId);}catch(_){}mapPick(e);});
+mapc.addEventListener('pointermove',e=>{if(drag)mapPick(e);});
+const end=()=>{drag=false;};mapc.addEventListener('pointerup',end);mapc.addEventListener('pointercancel',end);
+mapc.addEventListener('keydown',e=>{const d={ArrowLeft:[.5,0],ArrowRight:[-.5,0],ArrowUp:[0,1],ArrowDown:[0,-1]}[e.key];if(!d)return;e.preventDefault();
+st.T=Math.max(-30,Math.min(0,st.T+d[0]));st.S=Math.max(0,Math.min(35,st.S+d[1]));st.scen=null;setSliders();ui();});
+function stats(){
+if(st.mode==='mol'){$('stat').textContent='떠다니는 수증기 분자 '+M.mol.length+'개, 결정에 붙은 분자 '+M.cnt+'개';return;}
+const mm=(2*F.maxR*.012).toFixed(2),t=Math.floor(F.time/60);
+let s=F.done||F.time>=3600?'완성':dv.L<.01?'성장 멈춤':'성장 중';
+if(st.scen&&st.ph>=0)s+=' · '+SC[st.ph][3];
+$('stat').textContent='경과 '+t+'분 · 지름 약 '+mm+' mm · '+s;
+}
+function frame(){
+if(st.play){
+if(st.mode==='flake'){
+if(!F.done&&F.time<3600){
+if(st.scen){let ph=0;for(let i=0;i<SC.length;i++)if(F.time>=SC[i][0])ph=i;if(ph!==st.ph){st.ph=ph;st.T=SC[ph][1];st.S=SC[ph][2];setSliders();ui();}}
+F.time+=4*st.spd;acc+=4*st.spd*dv.L;let n=0;while(acc>=1&&!F.done&&n<24){stepFlake(F,dv.p,dv.eps,dv.dpass);acc-=1;n++;}if(n>=24)acc=0;}
+}else{half^=1;const reps=st.spd<1?half:st.spd;for(let i=0;i<reps;i++)stepMol(M,st.T,st.S,st.P,st.V);}
+}
+if(st.mode==='flake')drawFlake();else drawMol();
+if(++tick%6===0)stats();
+requestAnimationFrame(frame);
+}
+function retheme(){mapV=-1;drawMap();drawSide();}
+if(window.matchMedia){const mq=matchMedia('(prefers-color-scheme: dark)');if(mq.addEventListener)mq.addEventListener('change',retheme);}
+if(window.MutationObserver)new MutationObserver(retheme).observe(document.documentElement,{attributes:true,attributeFilter:['data-theme']});
+build();mapSize();setMode('flake');setPlay(st.play);ui();stats();
+if(window.ResizeObserver){let lw=cv.clientWidth,lm=mapc.clientWidth;new ResizeObserver(()=>{if(Math.abs(cv.clientWidth-lw)>4){lw=cv.clientWidth;build();drawSide();}if(Math.abs(mapc.clientWidth-lm)>2){lm=mapc.clientWidth;mapSize();drawMap();}}).observe(document.body);}
+if(document.fonts&&document.fonts.ready)document.fonts.ready.then(()=>drawMap());
+requestAnimationFrame(frame);
+})();
+</script>
+</body>
+</html>
